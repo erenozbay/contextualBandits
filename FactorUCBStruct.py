@@ -1,5 +1,3 @@
-import numpy as np
-import pandas as pd
 import time
 from CoLinFactorUCB_utils import *
 
@@ -15,7 +13,7 @@ class FactorUCBArmStruct:
         self.d = np.zeros(latent_dim)
         self.count = {}
 
-        # V vector contains the actual contextual information of arms as well as the Latent features
+        # V vector contains the actual contextual information of arms as well as the latent features
         # In FactorUCB algorithm, this takes the place of, e.g., (x_a, \hat{v}_{a,t}) in the mean term of UCB
         self.V = np.abs(np.random.rand(dim))
         self.count = 0
@@ -35,6 +33,7 @@ class FactorUCBArmStruct:
         self.V[:self.itemFeatureDim] = single_arm_info
         self.count = 1  # just to make sure I don't plug in contexts again and again
 
+    # this part should be different, this is not too good
     # just here to make sure that I don't plug in contexts again and again
     def checkv(self):
         return self.count == 0
@@ -42,10 +41,11 @@ class FactorUCBArmStruct:
 
 class FactorUCBUserStruct:
     def __init__(self, itemFeatureDim, latent_dim, lambd, W, K_arms, arms_index_array, initializeBanditParams='zeros'):
-        # arms_ index array is multidimensional array of shape (K_arms, I+arm dimensions), where 1 is for arm_index
+        # arms_index_array is multidimensional array of shape (K_arms, 1+arm dimensions), where 1 is for arm_index
+        # initializeBanditParams should be 'random' for random bandit parameters initializations
 
-        # Letting the Length of adjacency matrix to be the userNum for local purposes,
-        # it actualLy stands for number of UNIQUE users, aka, number of clusters
+        # Letting the length of adjacency matrix to be the userNum for use within the class
+        # This actualLy stands for number of unique users, or number of clusters if applicable
         self.userNum = len(W)
         self.itemFeatureDim = itemFeatureDim
         self.latent_dim = latent_dim
@@ -53,27 +53,27 @@ class FactorUCBUserStruct:
         self.K_arms = K_arms
         self.W = W
 
-        # I don't need to keep track of A, only need A inverse
-        # wiLl be updated with gathered information, will always be kept inverted
+        # I don't need to keep track of A, only need A inverse, rank-one updates are all I need
+        # will be updated with gathered information and wilL always be kept inverted (except for warm starting)
         self.AInv = (1 / lambd) * np.identity(self.dim * self.userNum)
-        self.b = np.zeros(self.dim * self.userNum)  # wiLl be updated with gathered information
+
+        # wiLl be updated with gathered information
+        self.b = np.zeros(self.dim * self.userNum)
 
         # to be learned, uppercase \hat{\theta} in the paper, Colin alg Line 6 has it in the UCB term, first term
         self.userTheta = np.zeros((self.dim, self.userNum))
         if initializeBanditParams == 'random':
-            self.userTheta = l1NormalizationByCol(np.random.rand(self.dim, self.userNum))
+            self.userTheta = l1NormalizationByCol(self.userTheta)
 
         # \bar{\Theta} in the paper, combination of user similarities with item-user preferences,
         # again Line 6, the term in the vec(.)
         self.barTheta = np.zeros((self.dim, self.userNum))
 
-        # since this is static, we just fix the kronecker multiplication of W and Identity
+        # this is static, we just fix the kronecker multiplication of W and Identity matrix of proper size
         self.kronnedW = np.kron(np.transpose(W), np.identity(self.dim))
 
-        # Confidence Bound - Optimistic part (CBO), second term of the UCB term on Line 9,
-        # first part of the variance term
-        # this is not explicitly defined in the paper,
-        # but this holds for W.T * AInv * W in the first part of the variance term
+        # Confidence Bound - Optimistic part (CBO), second term of the UCB term on Line 9, 1st part of the variance term
+        # not explicitly defined in the paper, but this holds for W.T * AInv * W in the first part of the variance term
         # we combine this with the content in getRec method below
         self.CBO = np.dot(np.dot(self.kronnedW, self.AInv), np.transpose(self.kronnedW))
 
@@ -93,7 +93,8 @@ class FactorUCBUserStruct:
 
         # Line 9 in CoLin
         self.b += click * X
-        self.userTheta = matrixize(np.dot(self.AInv, self.b), len(arm.V))
+
+        self.userTheta = matrixize(np.dot(self.AInv, self.b), len(arm.V))  # how about normalizing this?
 
         # We use this in UCB calculations as the first term in UCB is arm context combined
         # with bandit parameters with other user effects plugged in
@@ -106,7 +107,6 @@ class FactorUCBUserStruct:
         # that can be used for checking if this part is taking the Longest time or not
         # if this is not taking the Longest time, something is wrong either in this method on somewhere else
         # as this is the most costly step since we avoid inverting A
-
         stime = time.time()
         self.CBO = np.dot(np.dot(self.kronnedW, self.AInv), np.transpose(self.kronnedW))
         etime = time.time()
@@ -115,12 +115,12 @@ class FactorUCBUserStruct:
         arm.updateParameters(self.barTheta, click, userID)
         return etime - stime
 
-    def getRec(self, arm_info, userCluster, alpha = 0.25, alpha2 = 0.25):
-        # Instead of calculating the UCB for each arm and Looping over that calculation, here we do it in one go.
+    def getRec(self, arm_info, userCluster, alpha=0.25, alpha2=0.25):
+        # Instead of calculating the UCB for each arm and looping over that calculation, here we do it in one go.
         # Just get the rows of a column-vector to denote the UCB of each arm.
         # Here the assumption on the data is as follows:
         # Each row stores one item, the first column stores the item ID (not used within this method),
-        # the other columns (there should be self. dim many of them) store the contextual information of that item.
+        # the other columns (there should be self.dim many of them) store the contextual information of that item.
         # This part calculates the UCB of each item and returns an array where the
         # UCB of i-th item in items info is in the i-th position of the returned array
         item_temp_features = np.empty([len(arm_info), self.dim * self.userNum])
@@ -146,13 +146,12 @@ class FactorUCBUserStruct:
 
         # Sort the UCBs in decreasing order
         item_positions = np.argsort(UCBs)[::-1]
-        items = []
 
-        # Reorder the rows in arm info to reflect the ordering of the UCEs
+        # Reorder the rows in arm info to reflect the ordering of the UCBs
+        items = []
         for i in range(len(arm_info)):
             items.append(arm_info[item_positions[i]])
-
-        # returns the items with ID first and features next in a new order where the first itrm has the highest UCB
+        # returns the items with ID first and features next in a new order where the first item has the highest UCB
         # hence allows for multiple selections
         return items
 
@@ -167,14 +166,12 @@ class FactorUCBUserStruct:
 
     def fitParams(self, userTheta, A_inverse_in=False, AInv=np.empty(1),
                   latents_in=False, V=np.empty(1), CInv=np.empty(1)):
-
         # Assumes that the userTheta, AInv, V and CInv has the correct structure and dimensions,
         # e.g., V is a list of vectors and CInv is a list of matrices
         # By default, A inverse and latent information are not assumed to be plugged in
         # If only userTheta is provided, then only userTheta is plugged in
         # To plug in A inverse as well, the second argument should be True, the third argument should be proper AInv
         # To plug in latent information, fourth argument should be True, and the next should contain the proper inputs
-
         self.userTheta = userTheta
         if A_inverse_in:
             self.AInv = AInv
@@ -202,7 +199,6 @@ class FactorUCBUserStruct:
         path_userTheta = str(warmStartPaths['userTheta'])
         userTheta = np.transpose(pd.read_csv(path_userTheta, header=None, sep=",").to_numpy())
         # here userTheta is transposed because CoLinStruct returns the userTheta transposed
-        # both should be updated if one is updated
 
         if warmStartPaths['AInv_in']:
             path_AInv = str(warmStartPaths['AInv'])

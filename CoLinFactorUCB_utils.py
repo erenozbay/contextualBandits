@@ -74,7 +74,7 @@ def buildW(userFVs, clusterNum, sparsityLevel):
     W = l1NormalizationByCol(W)
 
     if 0 < sparsityLevel < n:
-        W = makeSparser(W, sparsityLevel, clusterNum)  # should last argument be n or clusterNum
+        W = makeSparser(W, sparsityLevel, clusterNum)  # should last argument be n or clusterNum?
     return W
 
 
@@ -91,7 +91,7 @@ def fixYahooDataPoints(pool_arms):
             del_discrepantArm = True
 
     if length != (getThisManyArticles * 7):
-        if length == ((getThisManyArticles * 7) + 2):  # this means arm 109528 is in since it has a context of dim 1
+        if length == ((getThisManyArticles * 7) + 2):  # this means arm 109528 is in since it has a context dim of 1
             pools = np.zeros((getThisManyArticles, 7))
             if del_discrepantArm:
                 pool_arms = np.delete(pool_arms, [position_arm_109528], axis=0)

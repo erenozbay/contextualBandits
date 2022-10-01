@@ -76,7 +76,7 @@ class ColinConstruct:
         etime = time.time()
         return etime - stime
 
-    def getRec(self, items_info, userID):
+    def getRec(self, items_info, userID, _, __):
         # Instead of calculating the UCB for each arm and looping over that calculation, here we do it in one go
         # Just get the rows of a column-vector to denote the UCB of each arm
         # Here the assumption on the data is as follows:

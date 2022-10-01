@@ -68,7 +68,8 @@ def preprocessMovieLens1M(path_input, sparsity, dim_movie_contexts=18, top_users
     filtered_data_original = user_filtered_data[user_filtered_data["movie_id"].isin(top_movies_index)]
     df = filtered_data_original.copy()
 
-    # Collaborative filtering run is here # 6599, 6601
+    # Collaborative filtering run is here #
+    # this is due to https://keras.io/examples/structured_data/collaborative_filtering_movielens/
     user_ids = users_to_be_filtered["user id"].unique().tolist()
     user2user_encoded = {x: i for i, x in enumerate(user_ids)}
     userencoded2user = {i: x for i, x in enumerate(user_ids)}

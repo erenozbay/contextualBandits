@@ -3,9 +3,8 @@ latent_dim: 3  # contains an integer denoting the latent dimension of the items
 
 lambda_ : 1  # contains a real number for lambda parameter
 
-alpha: 0.5  # for CoLin's single alpha
-alpha1: 0.375  # contains a real number for alpha parameter in FactorUCB, for the first term in the variance in UCB
-alpha2: 0.375  # contains a real number for alphaz parameter in FactorUCB, for the second term in the variance in UCB
+alpha: 0.375  # 0.5 for CoLin's single alpha, for the first term in the variance in UCB in FactorUCB
+alpha2: 0.375  # alpha2 parameter in FactorUCB, for the second term in the variance in UCB
 
 path_input: "/data/MovieLens/1M"  # complete address of datasets
 
@@ -22,13 +21,13 @@ warmStart_input: # a dictionary of two things: userTheta for the path to warm st
   CInv: "/"
 
 #clusterNum: 100  # number of clusters
-#sparsity: 50  # the Level of sparsity
-#top_users: 200  # default is 10000000, select top_users with the most ratings
-#n: 50  # default is 50, select top n most rated movies among top_users with the most ratings
+#sparsity: 50  # the Level of sparsity, default is the number of clusters clusterNum
+#top_users: 200  # default is all the users, select top_users with the most ratings
+#top_movies: 50  # default is 50, select top n most rated movies among top_users with the most ratings
 #embeddingSize: 50  # default is 50, size of the embedding for CF
 
 #stopAfter: 10000  # default 10000
 #recordEvery: 1000  # default 1000
-skip: 0  # default 0
+#skip: 0  # default 0
 #batchUpdates: 1  # default 1
-#initializeBanditParams: 'zeros'  # default 'zeros'
+#initBanditParams: 'zeros'  # default 'zeros'

@@ -12,25 +12,28 @@ def batchUpdatesInit():
     return moviesRecorded, clicksRecorded, clustersRecorded, appended
 
 
-def runMovieLens(colinORfactor, path_input, path_output, warmStartPaths, iFD, lFD,
-                 sparsity, lambd, initializeBanditParams, alpha, alpha2,
-                 dim_contexts=18, top_users=1000000, numClust=100, top_movies=50, embeddingSize=50,
-                 stopAfter=10000, recordEvery=1000, skip=0, batchUpdates=1):
+def runMovieLens(colinfactor, path_input, path_output, warmStartPaths, iFD, lFD, lambd, initBanditParams, alpha, alpha2,
+                 dim_contexts=18, top_users=1000, numClust=100, sparsity=100, top_movies=50, embeddingSize=50,
+                 stopAfter=15000, recordEvery=1000, skip=0, batchUpdates=1):
 
     # preprocess the data, run CF on the desired subset, return that subset of information
     data, movie_features, users, W = preprocessMovieLens1M(path_input, sparsity, dim_movie_contexts=dim_contexts,
                                                            top_users=top_users, numClust=numClust,
                                                            top_movies=top_movies, embeddingSize=embeddingSize)
+    print("Performed the proper preprocessing of the dataset.")
     moviesRecorded, clicksRecorded, clustersRecorded, appended = batchUpdatesInit()
 
     algObject = None
-    if colinORfactor == 'colin':
-        algObject = ColinConstruct(iFD, lambd, alpha, W, initializeBanditParams)
-    elif colinORfactor == 'factor':
+    if colinfactor == 'colin':
+        algObject = ColinConstruct(iFD, lambd, alpha, W, initBanditParams)
+    elif colinfactor == 'factor':
         algObject = FactorUCBUserStruct(itemFeatureDim=iFD, latent_dim=lFD, lambd=lambd, W=W,
                                         K_arms=len(movie_features),
                                         arms_index_array=list(movie_features['movie_id']),
-                                        initializeBanditParams=initializeBanditParams)
+                                        initializeBanditParams=initBanditParams)
+    else:
+        print("Problem in the algorithm selection phase. Exiting...")
+        exit()
 
     aligned_time_steps = 0  # keeps track of the data points where the recommendation matched the actual data
     time_steps = 0  # keeps track of the overall number of data points considered, excludes warm start points
@@ -42,14 +45,14 @@ def runMovieLens(colinORfactor, path_input, path_output, warmStartPaths, iFD, lF
     record_aligned_time_steps = 0  # aligned time steps in the previous iteration
     record_cumulative_rewards = 0  # cumulative rewards in the previous iteration
     CTR = []
-    output = colinORfactor + "_object"
+    output = colinfactor + "_object"
 
     if skip > 0:
         algObject.readParams(warmStartPaths)
         print("Parameters are successfully read.")
 
     starttime = time.time()
-
+    print("Starting")
     for i in range(len(data)):
         lines += 1
 
@@ -74,9 +77,9 @@ def runMovieLens(colinORfactor, path_input, path_output, warmStartPaths, iFD, lF
             # Check if arm index is the same as data arm (i.e., same actions were chosen)
             if movie_id == chosen_arm[0]:
                 movie = None  # this arm selection part should be made homogeneous across two methods
-                if colinORfactor == 'colin':
+                if colinfactor == 'colin':
                     movie = chosen_arm[1:]
-                elif colinORfactor == 'factor':
+                elif colinfactor == 'factor':
                     movie = algObject.arms[movie_id]
 
                 if batchUpdates > 1:
@@ -109,18 +112,18 @@ def runMovieLens(colinORfactor, path_input, path_output, warmStartPaths, iFD, lF
                 record_aligned_time_steps = aligned_time_steps
 
                 if time_steps & (recordEvery * 10) == 0:
-                    print(str(colinORfactor) + " cumulative reward " + str(cumulative_rewards) + ", aligned step " +
+                    print(str(colinfactor) + " cumulative reward " + str(cumulative_rewards) + ", aligned step " +
                           str(aligned_time_steps) + "at simulation time " + str(time_steps) + " and " +
                           str(time.time() - starttime) + " seconds from start.")
                     print("Total running CTR lift is " + str(cumulative_rewards / max(aligned_time_steps, 1)))
 
                 if time_steps % (recordEvery * 10) == 0:
-                    res = printResults(algObject, path_output, CTR, str(colinORfactor))
+                    res = printResults(algObject, path_output, CTR, str(colinfactor))
                     if not res:
                         print("Exiting...")
                         break
 
-    printResults(algObject, path_output, CTR, str(colinORfactor))  # print results just one more time before exiting
+    printResults(algObject, path_output, CTR, str(colinfactor))  # print results just one more time before exiting
 
     return {'aligned_time_steps': aligned_time_steps, 'cumulative_rewards': cumulative_rewards,
             'cumulative_rewards_list': cumulative_rewards_list, 'CTR': CTR, str(output): algObject}

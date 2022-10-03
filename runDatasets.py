@@ -1,6 +1,7 @@
 from CoLinStruct import *
 from FactorUCBStruct import *
 from CoLinFactorUCB_utils import *
+from preprocessMLens import preprocessMovieLens1M
 
 
 def batchUpdatesInit():
@@ -11,19 +12,25 @@ def batchUpdatesInit():
     return moviesRecorded, clicksRecorded, clustersRecorded, appended
 
 
-def runMovieLens(colinORfactor, path_input, path_output, warmStartPaths, data, top_movies_features,
-                 users_to_be_filtered, iFD, lFD, lambd, W, initializeBanditParams, alpha, alpha2,
+def runMovieLens(colinORfactor, path_input, path_output, warmStartPaths, iFD, lFD,
+                 sparsity, lambd, initializeBanditParams, alpha, alpha2,
+                 dim_contexts=18, top_users=1000000, numClust=100, top_movies=50, embeddingSize=50,
                  stopAfter=10000, recordEvery=1000, skip=0, batchUpdates=1):
+
+    # preprocess the data, run CF on the desired subset, return that subset of information
+    data, movie_features, users, W = preprocessMovieLens1M(path_input, sparsity, dim_movie_contexts=dim_contexts,
+                                                           top_users=top_users, numClust=numClust,
+                                                           top_movies=top_movies, embeddingSize=embeddingSize)
+    moviesRecorded, clicksRecorded, clustersRecorded, appended = batchUpdatesInit()
+
     algObject = None
     if colinORfactor == 'colin':
         algObject = ColinConstruct(iFD, lambd, alpha, W, initializeBanditParams)
     elif colinORfactor == 'factor':
         algObject = FactorUCBUserStruct(itemFeatureDim=iFD, latent_dim=lFD, lambd=lambd, W=W,
-                                        K_arms=len(top_movies_features),
-                                        arms_index_array=list(top_movies_features['movie_id']),
+                                        K_arms=len(movie_features),
+                                        arms_index_array=list(movie_features['movie_id']),
                                         initializeBanditParams=initializeBanditParams)
-
-    moviesRecorded, clicksRecorded, clustersRecorded, appended = batchUpdatesInit()
 
     aligned_time_steps = 0  # keeps track of the data points where the recommendation matched the actual data
     time_steps = 0  # keeps track of the overall number of data points considered, excludes warm start points
@@ -53,7 +60,7 @@ def runMovieLens(colinORfactor, path_input, path_output, warmStartPaths, data, t
 
             user_id = data.loc[i, "user_id"]
             # if clustering, user id will stand for the cluster that this particular user belongs, clusters start from 0
-            clusterAssgn = np.asarray(users_to_be_filtered.query("user_id == @user_id")["cluster"])[0]
+            clusterAssgn = np.asarray(users.query("user_id == @user_id")["cluster"])[0]
 
             movie_id = data.loc[i, "movie_id"]
             reward = data.loc[i, "reward"]  # Obtain rewards
@@ -62,7 +69,7 @@ def runMovieLens(colinORfactor, path_input, path_output, warmStartPaths, data, t
                 print(" \nSTEP " + str(i) + ", AND TIME FROM START" + str(time.time() - starttime) + " =" + "=" * 15)
 
             # Find policy's chosen arm based on input covariates at current time step
-            arm_recs = algObject.getRec(top_movies_features.to_numpy(), clusterAssgn, alpha, alpha2)
+            arm_recs = algObject.getRec(movie_features.to_numpy(), clusterAssgn, alpha, alpha2)
             chosen_arm = arm_recs[0]
             # Check if arm index is the same as data arm (i.e., same actions were chosen)
             if movie_id == chosen_arm[0]:
@@ -88,11 +95,11 @@ def runMovieLens(colinORfactor, path_input, path_output, warmStartPaths, data, t
                                                        clicksRecorded[ij], clustersRecorded[ij])
                         # initialize the recorders
                         moviesRecorded, clicksRecorded, clustersRecorded, appended = batchUpdatesInit()
-                    else:
-                        algObject.updateParameters(movie, reward, clusterAssgn)
-                        aligned_time_steps += 1
-                        cumulative_rewards += reward
-                        cumulative_rewards_list.append(cumulative_rewards)
+                else:
+                    algObject.updateParameters(movie, reward, clusterAssgn)
+                    aligned_time_steps += 1
+                    cumulative_rewards += reward
+                    cumulative_rewards_list.append(cumulative_rewards)
 
             if time_steps % recordEvery == 0:
                 current_CTR = (cumulative_rewards - record_cumulative_rewards) / \

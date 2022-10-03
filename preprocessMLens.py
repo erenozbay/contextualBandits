@@ -5,10 +5,11 @@ from sklearn.preprocessing import OneHotEncoder
 import tensorflow as tf
 from tensorflow import keras
 from keras import layers
+from CoLinFactorUCB_utils import *
 
 
-def preprocessMovieLens1M(path_input, sparsity, dim_movie_contexts=18, top_users=1000000, numClust=100, n=50,
-                          embeddingSize=50):
+def preprocessMovieLens1M(path_input, sparsity, dim_movie_contexts=18, top_users=1000000,
+                          numClust=100, top_movies=50, embeddingSize=50):
     # get the user data
     users = pd.read_cv(path_input + "/users.csv", header=0, sep=",")
     users.columns = ["user id", "gender", "age", "occupation", "zipcode"]
@@ -34,7 +35,7 @@ def preprocessMovieLens1M(path_input, sparsity, dim_movie_contexts=18, top_users
     movie = pd.DataFrame(columns=["movie_id", "Action", "Adventure", "Animation", "Children's", "Comedy", "Crime",
                                   "Documentary", "Drama", "Fantasy", "Film-Noir", "Horror", "Musical", "Mystery",
                                   "Romance", "Sci-Fi", "Thriller", "War", "Western"])
-    movie["movie_id"] = movie_raw["movield"]
+    movie["movie_id"] = movie_raw["movieId"]
     movie = movie.fillna(0)
     # binary encode the genres starting from a List of genres in the original dataset
     for i in range(len(movie_raw)):
@@ -48,20 +49,19 @@ def preprocessMovieLens1M(path_input, sparsity, dim_movie_contexts=18, top_users
 
     # get the ratings data
     data = pd.read_csv(path_input + "/ratings.csv", sep=",", header=0,
-                       names=["user id", "movie_id", "rating", "timestamp"])
+                       names=["user_id", "movie_id", "rating", "timestamp"])
     top_users = min(top_users, len(user_features))
     # Find total number of ratings by the top top_users users with the most ratings given out
     # data.groupby("user_id").count().sort_values( "rating", ascending = False).head(top_users)["rating"].sum()
     users_to_be_filtered = pd.DataFrame(
-        data.groupby("user id").count().sort_values("rating", ascending=False).head(top_users).index)
+        data.groupby("user_id").count().sort_values("rating", ascending=False).head(top_users).index)
     users_to_be_filtered["cluster"] = np.array([range(top_users)]).T.astype(int)
 
     # this is the (user-filtered) data we will use to decide on the top n movies
-    user_filtered_data = data[data["user id"].isin(users_to_be_filtered["user id"])]
-    # Obtain n top movies index
-    top_movies_index = \
-        user_filtered_data.groupby("movie_id").count().sort_values("rating", ascending=False).head(n).reset_index()[
-            "movie id"]
+    user_filtered_data = data[data["user_id"].isin(users_to_be_filtered["user_id"])]
+    # Obtain top movies indices
+    top_movies_index = user_filtered_data.groupby("movie_id").count().sort_values(
+        "rating", ascending=False).head(top_movies).reset_index()["movie_id"]
     top_movies_features = movie_features[movie_features.movie_id.isin(top_movies_index)]
     top_movies_indices = top_movies_index.to_numpy()
 
@@ -70,21 +70,19 @@ def preprocessMovieLens1M(path_input, sparsity, dim_movie_contexts=18, top_users
 
     # Collaborative filtering run is here #
     # this is due to https://keras.io/examples/structured_data/collaborative_filtering_movielens/
-    user_ids = users_to_be_filtered["user id"].unique().tolist()
+    user_ids = users_to_be_filtered["user_id"].unique().tolist()
     user2user_encoded = {x: i for i, x in enumerate(user_ids)}
-    userencoded2user = {i: x for i, x in enumerate(user_ids)}
-    movie_ids = df["movie id"].unique().tolist()
+    movie_ids = df["movie_id"].unique().tolist()
     movie2movie_encoded = {x: i for i, x in enumerate(movie_ids)}
     movie_encoded2movie = {i: i for i, x in enumerate(movie_ids)}
-    df["user"] = df["user id"].map(user2user_encoded)
-    df["movie"] = df["movie _id"].map(movie2movie_encoded)
+    df["user"] = df["user_id"].map(user2user_encoded)
+    df["movie"] = df["movie_id"].map(movie2movie_encoded)
 
     num_users = len(user2user_encoded)
     num_movies = len(movie_encoded2movie)
     df["rating"] = df["rating"].values.astype(np.float32)
-    # min and max ratings will be used in normalization
-    min_rating = min(df["rating"])
-    max_rating = max(df["rating"])
+    # min and max ratings are used in normalization
+    min_rating, max_rating = min(df["rating"]), max(df["rating"])
 
     df = df.sample(frac=1, random_state=42)
     x = df[["user", "movie"]].values
@@ -160,7 +158,7 @@ def preprocessMovieLens1M(path_input, sparsity, dim_movie_contexts=18, top_users
     pd.DataFrame(friendshipMatrix).to_csv(path_input + "/userWeightsFromCF.csv", index=False, header=None)
 
     W_raw = friendshipMatrix
-    # Collaborative filtering run is here #
+    # Collaborative filtering run is concluded here #
 
     # cluster users further
     user2user = np.dot(W_raw, W_raw.T)
@@ -171,7 +169,7 @@ def preprocessMovieLens1M(path_input, sparsity, dim_movie_contexts=18, top_users
     clusters = np.zeros(len(W_raw))
     for i in range(len(W_raw)):
         clusters[i] = np.atleast_1d(np.argmin(np.linalg.norm(centers - user2user[i], axis=1)))[0]
-
+        # to eliminate the rare case of multiple cluster assignments of a single user
     users_to_be_filtered["newCluster"] = clusters.T.astype(int)
 
     newW = np.zeros((numClust, numClust))
@@ -180,26 +178,8 @@ def preprocessMovieLens1M(path_input, sparsity, dim_movie_contexts=18, top_users
             newW[users_to_be_filtered['newCluster'][j], i] += np.dot(W_raw[users_to_be_filtered['cluster'][j]],
                                                                      W_raw[i].T)
 
-    # add sparsity if applicable
-    if 0 < sparsity < numClust:
-        SparserW = newW.copy()
-        nn = len(newW)
-        for i in range(nn):
-            similarity = sorted(newW[i], reverse=True)
-            threshold = similarity[sparsity - 1]
-            for j in range(nn):
-                if newW[i][j] <= threshold:
-                    SparserW[i][j] = 0
-        newW = SparserW
-
-    # normalize by columns
-    colNorms = np.linalg.norm(newW, axis=0, ord=1).astype(float)
-    newW2 = newW.astype(float)
-    for i in range(len(newW[0])):
-        if colNorms[i] != 0:
-            newW2[:, i] = newW[:, i] / colNorms[i]
-
-    W = newW2
+    # adds sparsity, if applicable; normalizes by columns either way
+    W = makeSparser(newW, sparsity, numClust)
 
     users_to_be_filtered['cluster'] = users_to_be_filtered['newCluster']
     users_to_be_filtered = users_to_be_filtered.drop('newCluster', axis=1)

@@ -29,7 +29,7 @@ class ColinConstruct:
 
         # if randomly initializing bandit parameters
         if initializeBanditParams == 'random':
-            self.userTheta = l1NormalizationByCol(self.userTheta)
+            self.userTheta = l1NormalizationByCol(np.random.rand(self.itemDim, self.userNum))
 
         # \bar{\Theta} in the paper, combination of user similarities with item-user preferences,
         # again Line 6, the term inside the vec(.)
@@ -47,7 +47,7 @@ class ColinConstruct:
         # The first element of the second term in the right-hand side of line 8, the X * X.T is the update on A
         X = vectorize(np.outer(itemContext, self.W.T[userID]))
 
-        # Since doing full inverse takes longer we do a rank-one update and omparing different approaches in
+        # Since doing full inverse takes longer we do a rank-one update and comparing different approaches in
         # terms of execution time, we use the below lines, where the discussion can be found on
         # https://timvieira.github.io/blog/post/2021/03/25/fast-rank-one-updates-to-matrix-inverse/
         interim = Inv(self.AInv)

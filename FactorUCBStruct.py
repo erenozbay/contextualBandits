@@ -63,7 +63,7 @@ class FactorUCBUserStruct:
         # to be learned, uppercase \hat{\theta} in the paper, Colin alg Line 6 has it in the UCB term, first term
         self.userTheta = np.zeros((self.dim, self.userNum))
         if initializeBanditParams == 'random':
-            self.userTheta = l1NormalizationByCol(self.userTheta)
+            self.userTheta = l1NormalizationByCol(np.random.rand(self.dim, self.userNum))
 
         # \bar{\Theta} in the paper, combination of user similarities with item-user preferences,
         # again Line 6, the term in the vec(.)

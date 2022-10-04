@@ -6,10 +6,10 @@ lambda_ : 1  # contains a real number for lambda parameter
 alpha: 0.375  # 0.5 for CoLin's single alpha, for the first term in the variance in UCB in FactorUCB
 alpha2: 0.375  # alpha2 parameter in FactorUCB, for the second term in the variance in UCB
 
-path_input: "/data/MovieLens/1M"  # complete address of datasets
+path_input: "data/MovieLens/1M"  # complete address of datasets
 
-# complete address of where to store CTR values, as well as userTheta and AInv for warm start purposes
-path output: "/results"
+run_CF: True  # If we need to run CF from scratch or use the existing weights file
+run_Kmeans: True
 
 # these won't be read unless skip below is not greater than zero
 warmStart_input: # a dictionary of two things: userTheta for the path to warm starting userTheta matrix, AInv similarly
@@ -27,7 +27,7 @@ warmStart_input: # a dictionary of two things: userTheta for the path to warm st
 #embeddingSize: 50  # default is 50, size of the embedding for CF
 
 #stopAfter: 10000  # default 10000
-#recordEvery: 1000  # default 1000
+recordEvery: 250  # default 100
 #skip: 0  # default 0
 #batchUpdates: 1  # default 1
 #initBanditParams: 'zeros'  # default 'zeros'

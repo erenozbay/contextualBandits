@@ -35,7 +35,7 @@ if __name__ == '__main__':
         # embeddingSize: size of the embedding for the CF
 
         path_input = dataInfo['path_input']
-        path_output = dataInfo['path_output']
+        path_output = path_input + "/results"
         dim_contexts = dataInfo['itemFeatureDim']
 
         clusterNum = dataInfo['clusterNum'] if 'clusterNum' in dataInfo else 100
@@ -45,10 +45,12 @@ if __name__ == '__main__':
         sparsity = min(dataInfo['sparsity'], clusterNum) if 'sparsity' in dataInfo else clusterNum
 
         stopAfter = dataInfo['stopAfter'] if 'stopAfter' in dataInfo else 10000
-        recordEvery = dataInfo['recordEvery'] if 'recordEvery' in dataInfo else 1000
+        recordEvery = dataInfo['recordEvery'] if 'recordEvery' in dataInfo else 100
         skip = dataInfo['skip'] if 'skip' in dataInfo else 0
         batchUpdates = dataInfo['batchUpdates'] if 'batchUpdates' in dataInfo else 1
         initBanditParams = dataInfo['initBanditParams'] if 'initBanditParams' in dataInfo else 'zeros'
+        runCF = dataInfo['run_CF'] if 'run_CF' in dataInfo else True
+        runKmeans = dataInfo['run_Kmeans'] if 'run_Kmeans' in dataInfo else True
 
         warmStartPaths = dataInfo['warmStart_input'] if 'warmStart_input' in dataInfo else ""
         iFD = dataInfo['itemFeatureDim'] if 'itemFeatureDim' in dataInfo else -1
@@ -60,6 +62,6 @@ if __name__ == '__main__':
         alpha2 = dataInfo['alpha2'] if 'alpha2' in dataInfo else -1
 
         runMovieLens(algName, path_input, path_output, warmStartPaths, iFD, lFD, lambd, initBanditParams, alpha, alpha2,
-                     dim_contexts=iFD, top_users=top_users, numClust=clusterNum, sparsity=sparsity,
+                     runCF, runKmeans, top_users=top_users, numClust=clusterNum, sparsity=sparsity,
                      top_movies=top_movies, embeddingSize=embeddingSize, stopAfter=stopAfter,
                      recordEvery=recordEvery, skip=skip, batchUpdates=batchUpdates)

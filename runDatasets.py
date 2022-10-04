@@ -13,13 +13,14 @@ def batchUpdatesInit():
 
 
 def runMovieLens(colinfactor, path_input, path_output, warmStartPaths, iFD, lFD, lambd, initBanditParams, alpha, alpha2,
-                 dim_contexts=18, top_users=1000, numClust=100, sparsity=100, top_movies=50, embeddingSize=50,
-                 stopAfter=15000, recordEvery=1000, skip=0, batchUpdates=1):
+                 runCF, runKmeans, top_users=1000, numClust=100, sparsity=100, top_movies=50,
+                 embeddingSize=50, stopAfter=15000, recordEvery=1000, skip=0, batchUpdates=1):
 
     # preprocess the data, run CF on the desired subset, return that subset of information
-    data, movie_features, users, W = preprocessMovieLens1M(path_input, sparsity, dim_movie_contexts=dim_contexts,
-                                                           top_users=top_users, numClust=numClust,
-                                                           top_movies=top_movies, embeddingSize=embeddingSize)
+    data, movie_features, users, W = preprocessMovieLens1M(path_input, sparsity, runCF=runCF, runKmeans=runKmeans,
+                                                           dim_movie_contexts=iFD, top_users=top_users,
+                                                           numClust=numClust, top_movies=top_movies,
+                                                           embeddingSize=embeddingSize)
     print("Performed the proper preprocessing of the dataset.")
     moviesRecorded, clicksRecorded, clustersRecorded, appended = batchUpdatesInit()
 
@@ -69,7 +70,8 @@ def runMovieLens(colinfactor, path_input, path_output, warmStartPaths, iFD, lFD,
             reward = data.loc[i, "reward"]  # Obtain rewards
 
             if i % 2500 == 0:
-                print(" \nSTEP " + str(i) + ", AND TIME FROM START" + str(time.time() - starttime) + " =" + "=" * 15)
+                print(" \nSTEP " + str(i) + ", AND TIME FROM START " + str(round(time.time() - starttime, 2)) +
+                      " seconds =" + "=" * 25)
 
             # Find policy's chosen arm based on input covariates at current time step
             arm_recs = algObject.getRec(movie_features.to_numpy(), clusterAssgn, alpha, alpha2)
@@ -111,9 +113,9 @@ def runMovieLens(colinfactor, path_input, path_output, warmStartPaths, iFD, lFD,
                 record_cumulative_rewards = cumulative_rewards
                 record_aligned_time_steps = aligned_time_steps
 
-                if time_steps & (recordEvery * 10) == 0:
+                if time_steps % (recordEvery * 10) == 0:
                     print(str(colinfactor) + " cumulative reward " + str(cumulative_rewards) + ", aligned step " +
-                          str(aligned_time_steps) + "at simulation time " + str(time_steps) + " and " +
+                          str(aligned_time_steps) + " at simulation time " + str(time_steps) + " and " +
                           str(time.time() - starttime) + " seconds from start.")
                     print("Total running CTR lift is " + str(cumulative_rewards / max(aligned_time_steps, 1)))
 
